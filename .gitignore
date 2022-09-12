@@ -1,0 +1,4 @@
+.stack-work/
+*~
+jingle.cabal
+stack.yaml.lock

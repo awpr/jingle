@@ -1,0 +1,13 @@
+resolver: lts-19.23
+
+packages:
+- .
+
+extra-deps:
+  - git: https://github.com/awpr/portray.git
+    commit: 0bfcb8a5f20f0cdfe3756c9ae1941c9b36c6828b
+    subdirs:
+      - portray
+      - portray-diff
+      - portray-prettyprinter
+  - wrapped-0.1.0.1
