@@ -88,18 +88,17 @@ voicing =
     <$> (note <?> "note name")
     <*> (chord <?> "chord quality")
 
-phonon :: Parser (Musel Rational (Articulated Voicing))
-phonon = do
+playPhonon :: Parser (Phonon Rational (Articulated Voicing))
+playPhonon = do
   v <- voicing
   dur <- duration
   art <- optional articulation
-  adv <- not <$> flag (symbol ws ",")
-  return $ Musel dur $ Just $ Phonon (Articulated v art) adv
+  return $ Phonon dur (Just $ Articulated v art)
 
-musel :: Parser (Musel Rational (Articulated Voicing))
-musel = choice
-  [ lexeme ws phonon
-  , lexeme ws $ char '_' *> (Musel <$> duration <*> pure Nothing)
+phonon :: Parser (Phonon Rational (Articulated Voicing))
+phonon = choice
+  [ lexeme ws playPhonon
+  , lexeme ws $ char '_' *> (Phonon <$> duration <*> pure Nothing)
   ]
 
 rep :: Parser Repeat
@@ -124,7 +123,7 @@ grp = do
 trackPiece :: Parser TrackPiece
 trackPiece =
   choice
-    [ Single <$> musel
+    [ Single <$> (flip Advance <$> phonon <*> (not <$> flag (symbol ws ",")))
     , grp
     , Rep <$> rep
     ]

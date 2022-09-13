@@ -6,10 +6,11 @@
 module ToMIDI (toMIDIFile, writeMIDIFile) where
 
 import Control.Applicative ((<|>))
+import Data.Functor ((<&>))
 import Data.List (foldl', sortOn)
 import Data.Ratio (denominator)
 
-import Control.Lens ((%~), _2)
+import Control.Lens ((%~), _2, mapped)
 import Control.Lens.TH (makeLenses)
 
 import qualified Sound.MIDI.File as MIDI
@@ -22,26 +23,26 @@ import qualified Numeric.NonNegative.Wrapper as NN
 
 import AST
 
-flatten :: [TrackPiece] -> [Musel Rational (Articulated Voicing)]
+type Piece = Advance (Phonon Rational (Articulated Voicing))
+
+flatten :: [TrackPiece] -> [Piece]
 flatten ts = foldr (go 1 Nothing) [] ts
  where
   adjust
     :: Rational
     -> Maybe Articulation
-    -> Musel Rational (Articulated Voicing)
-    -> Musel Rational (Articulated Voicing)
-  adjust d a (Musel d' ph) = Musel (d * d') $ case ph of
-    Nothing -> Nothing
-    Just (Phonon (Articulated x a') adv) ->
-       Just $ Phonon (Articulated x (a' <|> a)) adv
+    -> Phonon Rational (Articulated Voicing)
+    -> Phonon Rational (Articulated Voicing)
+  adjust d a (Phonon d' mx) = Phonon (d * d') $
+    mx <&> \ (Articulated x a') -> Articulated x (a' <|> a)
 
   go
     :: Rational
     -> Maybe Articulation
     -> TrackPiece
-    -> [Musel Rational (Articulated Voicing)]
-    -> [Musel Rational (Articulated Voicing)]
-  go d a (Single x) rest = adjust d a x : rest
+    -> [Piece]
+    -> [Piece]
+  go d a (Single x) rest = fmap (adjust d a) x : rest
   go d a (Group ps d' a') rest = foldr (go (d * d') (a' <|> a)) rest ps
   go d a (Rep (Repeat content end n)) rest = rep d a content end n rest
 
@@ -51,8 +52,8 @@ flatten ts = foldr (go 1 Nothing) [] ts
     -> [TrackPiece]
     -> [TrackPiece]
     -> Int
-    -> [Musel Rational (Articulated Voicing)]
-    -> [Musel Rational (Articulated Voicing)]
+    -> [Piece]
+    -> [Piece]
   rep _ _ _ _ n rest | n <= 0 = rest
   rep d a cont _ 1 rest = foldr (go d a) rest cont
   rep d a cont end n rest = foldr (go d a) (rep d a cont end (n-1) rest) (cont ++ end)
@@ -87,8 +88,8 @@ expandChord (Voicing root (Chord q adds)) =
 noteToMIDI :: Note -> Voice.Pitch
 noteToMIDI (Note x) = Voice.toPitch $ x + 12
 
-quantizeTimes :: Int -> [Musel Rational a] -> [Musel Int a]
-quantizeTimes denom = map (muDuration %~ truncate . (* fromIntegral denom))
+quantizeTimes :: Int -> [Advance (Phonon Rational a)] -> [Advance (Phonon Int a)]
+quantizeTimes denom = traverse . mapped . phDuration %~ truncate . (* fromIntegral denom)
 
 data Timestamped a = Timestamped { _tsTime :: Integer, _tsVal :: a }
   deriving Functor
@@ -98,26 +99,26 @@ $(makeLenses ''Timestamped)
 _unused :: ()
 _unused = const () (tsTime @() @[])
 
-toTimestamped :: [Musel Int a] -> [Timestamped (Int, a)]
+toTimestamped :: [Advance (Phonon Int a)] -> [Timestamped (Int, a)]
 toTimestamped = go 0
  where
   go _ [] = []
-  go t (Musel d c : ms) =
+  go t (Advance adv (Phonon d c) : ps) =
     maybe
       id
-      (\ (Phonon v _) -> (Timestamped t (d, v) :))
+      (\ v -> (Timestamped t (d, v) :))
       c
-      (go (t + if maybe True _phAdvance c then fromIntegral d else 0) ms)
+      (go (t + if adv then fromIntegral d else 0) ps)
 
 interpArticulation :: Maybe Articulation -> (Int, Int)
 interpArticulation art =
   case art of
-    Nothing -> (7, 64)
-    Just Staccato -> (4, 64)
-    Just Marcato -> (4, 96)
-    Just Accent -> (7, 96)
-    Just Tenuto -> (8, 80)
-    Just Legato -> (8, 64)
+    Nothing -> (7, 96)
+    Just Staccato -> (4, 96)
+    Just Marcato -> (4, 127)
+    Just Accent -> (7, 127)
+    Just Tenuto -> (8, 112)
+    Just Legato -> (8, 96)
 
 data MIDINote = MIDINote Voice.Pitch Voice.Velocity
 

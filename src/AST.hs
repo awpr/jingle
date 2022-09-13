@@ -7,9 +7,9 @@
 module AST
     ( Note(..)
     , ChordQuality(..), Chord(..), Interval(..), Voicing(..)
-    , Phonon(..), phAdvance, phVoicing
+    , Phonon(..), phDuration, phContent
+    , Advance(..)
     , Articulation(..), Articulated(..), arArticulation, arVal
-    , Musel(..), muContent, muDuration
     , Repeat(..), TrackPiece(..), Track(..), Comp(..)
     , durations
     ) where
@@ -76,25 +76,20 @@ data Articulated a = Articulated
 
 $(makeLenses ''Articulated)
 
--- One "thing" to be played in the track: a chord, note, etc. along with any
--- articulation, duration, etc.
-data Phonon a = Phonon
-  { _phVoicing :: a
-  , _phAdvance :: Bool
+-- One "thing" to be played in the track: a chord, note, or rest, along with
+-- any articulation, duration, etc.
+data Phonon t a = Phonon
+  { _phDuration :: t
+  , _phContent :: Maybe a
   }
   deriving (Generic, Eq, Ord, Read, Show, Functor)
-  deriving Portray via Wrapped Generic (Phonon a)
+  deriving Portray via Wrapped Generic (Phonon t a)
 
 $(makeLenses ''Phonon)
 
-data Musel t a = Musel
-  { _muDuration :: t
-  , _muContent :: Maybe (Phonon a)
-  }
+data Advance a = Advance Bool a
   deriving (Generic, Eq, Ord, Read, Show, Functor)
-  deriving Portray via Wrapped Generic (Musel t a)
-
-$(makeLenses ''Musel)
+  deriving Portray via Wrapped Generic (Advance a)
 
 data Repeat = Repeat
   { _repContents :: [TrackPiece]
@@ -105,14 +100,14 @@ data Repeat = Repeat
   deriving Portray via Wrapped Generic Repeat
 
 data TrackPiece
-  = Single (Musel Rational (Articulated Voicing))
+  = Single (Advance (Phonon Rational (Articulated Voicing)))
   | Group [TrackPiece] Rational (Maybe Articulation)
   | Rep Repeat
   deriving (Generic, Eq, Ord, Read, Show)
   deriving Portray via Wrapped Generic TrackPiece
 
 durations :: TrackPiece -> [Rational]
-durations (Single (Musel d _)) = [d]
+durations (Single (Advance _ (Phonon d _))) = [d]
 durations (Group ps d _) = concatMap (map (*d) . durations) ps
 durations (Rep (Repeat cont end _)) = concatMap durations (cont ++ end)
 
