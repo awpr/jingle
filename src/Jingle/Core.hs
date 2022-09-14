@@ -10,7 +10,11 @@
 -- In order to give the user-facing syntax and parser more flexibility, we
 -- tolerate some duplication between the Core and AST datatypes.
 
-module Jingle.Core (Sequence, Repeat(..), Item(..), Voicing(..), Phonon(..)) where
+module Jingle.Core
+  ( Sequence, Repeat(..), Item(..)
+  , Voicing(..), Phonon(..)
+  , TrackContents
+  ) where
 
 import GHC.Generics (Generic)
 
@@ -58,3 +62,5 @@ data Phonon t ann a = Phonon
   }
   deriving (Generic, Eq, Ord, Read, Show)
   deriving Portray via Wrapped Generic (Phonon t ann a)
+
+type TrackContents t ann a = Sequence t (Phonon t ann a)
