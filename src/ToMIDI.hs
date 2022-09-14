@@ -22,6 +22,7 @@ import qualified Data.EventList.Relative.TimeBody as EventList
 import qualified Numeric.NonNegative.Wrapper as NN
 
 import AST
+import Types (Comp(..), Track(..))
 
 type Piece = Advance (Phonon Rational (Articulated Voicing))
 
@@ -154,7 +155,7 @@ toTrack denom pcs =
   quantizeTimes denom $
   flatten pcs
 
-toMIDIFile :: Comp -> MIDI.T
+toMIDIFile :: Comp [TrackPiece] -> MIDI.T
 toMIDIFile (Comp _tempo ts) =
   MIDI.Cons
     (if length ts > 1 then MIDI.Parallel else MIDI.Mixed)
@@ -163,5 +164,5 @@ toMIDIFile (Comp _tempo ts) =
  where
   denom = 8 * foldl' lcm 1 [denominator x | t <- ts, p <- _trContents t, x <- durations p ]
 
-writeMIDIFile :: FilePath -> Comp -> IO ()
+writeMIDIFile :: FilePath -> Comp [TrackPiece] -> IO ()
 writeMIDIFile p = MIDI.toFile p . toMIDIFile

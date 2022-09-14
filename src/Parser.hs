@@ -17,6 +17,7 @@ import Text.Megaparsec.Char (char, string, space)
 import Text.Megaparsec.Char.Lexer (decimal, lexeme, symbol)
 
 import AST
+import Types (Comp(..), Track(..))
 
 type Parser = Parsec Void Text
 
@@ -128,13 +129,13 @@ trackPiece =
     , Rep <$> rep
     ]
 
-track :: Parser Track
+track :: Parser (Track TrackContents)
 track =
-  flip Track
+  Track
     <$> (option "" $ lexeme ws $ char '<' *> takeWhileP Nothing (/= '>') <* char '>')
     <*> many trackPiece
 
-comp :: Parser Comp
+comp :: Parser (Comp TrackContents)
 comp =
   Comp
     <$> (decimal <* symbol ws ";")

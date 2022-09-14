@@ -10,24 +10,18 @@ module AST
     , Phonon(..), phDuration, phContent
     , Advance(..)
     , Articulation(..), Articulated(..), arArticulation, arVal
-    , Repeat(..), TrackPiece(..), Track(..), Comp(..)
+    , Repeat(..), TrackPiece(..), TrackContents
     , durations
     ) where
 
 import GHC.Generics (Generic)
 
 import Control.Lens.TH (makeLenses)
-import Data.Text (Text)
 
 import Data.Portray (Portray)
 import Data.Wrapped (Wrapped(..))
 
-newtype Note = Note
-  { noteValue :: Int
-    -- ^ Chromatically ascending 12-tet, with C0 assigned to "0"
-  }
-  deriving (Generic, Eq, Ord, Read, Show, Num, Enum, Real, Integral)
-  deriving Portray via Wrapped Generic Note
+import Types (Note(..))
 
 data ChordQuality
   = Fifth    -- 1    5
@@ -111,16 +105,4 @@ durations (Single (Advance _ (Phonon d _))) = [d]
 durations (Group ps d _) = concatMap (map (*d) . durations) ps
 durations (Rep (Repeat cont end _)) = concatMap durations (cont ++ end)
 
-data Track = Track
-  { _trContents :: [TrackPiece]
-  , _trVoice :: Text
-  }
-  deriving (Generic, Eq, Ord, Read, Show)
-  deriving Portray via Wrapped Generic Track
-
-data Comp = Comp
-  { _coTempo :: Int
-  , _coTracks :: [Track]
-  }
-  deriving (Generic, Eq, Ord, Read, Show)
-  deriving Portray via Wrapped Generic Comp
+type TrackContents = [TrackPiece]
