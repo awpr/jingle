@@ -62,7 +62,11 @@ interval = decode <$> decimal
     in  Interval $ 12 * octave + semitones V.! itvMinus1
 
 chord :: Parser Chord
-chord = Chord <$> optional chordQuality <*> many (string "add" *> interval)
+chord =
+  Chord
+    <$> (note <?> "note name")
+    <*> (optional chordQuality <?> "chord quality")
+    <*> many (string "add" *> interval <?> "added note")
 
 articulation :: Parser Articulation
 articulation = choice
@@ -83,20 +87,14 @@ duration =
 ws :: Parser ()
 ws = space
 
-voicing :: Parser Voicing
-voicing =
-  Voicing
-    <$> (note <?> "note name")
-    <*> (chord <?> "chord quality")
-
-playPhonon :: Parser (Phonon Rational (Articulated Voicing))
+playPhonon :: Parser (Phonon Rational (Articulated Chord))
 playPhonon = do
-  v <- voicing
+  v <- chord
   dur <- duration
   art <- optional articulation
   return $ Phonon dur (Just $ Articulated v art)
 
-phonon :: Parser (Phonon Rational (Articulated Voicing))
+phonon :: Parser (Phonon Rational (Articulated Chord))
 phonon = choice
   [ lexeme ws playPhonon
   , lexeme ws $ char '_' *> (Phonon <$> duration <*> pure Nothing)

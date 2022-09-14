@@ -6,7 +6,7 @@
 
 module Jingle.Syntax
     ( Note(..)
-    , ChordQuality(..), Chord(..), Interval(..), Voicing(..)
+    , ChordQuality(..), Chord(..), Interval(..)
     , Phonon(..), phDuration, phContent
     , Advance(..)
     , Articulation(..), Articulated(..), arArticulation, arVal
@@ -39,7 +39,8 @@ newtype Interval = Interval { intervalValue :: Int }
   deriving Portray via Wrapped Generic Interval
 
 data Chord = Chord
-  { _cQuality :: Maybe ChordQuality
+  { _cRoot :: Note
+  , _cQuality :: Maybe ChordQuality
   , _cAdd :: [Interval]
   }
   deriving (Generic, Eq, Ord, Read, Show)
@@ -53,13 +54,6 @@ data Articulation
   | Legato
   deriving (Generic, Eq, Ord, Read, Show)
   deriving Portray via Wrapped Generic Articulation
-
-data Voicing = Voicing
-  { _voPitch :: Note
-  , _voChord :: Chord
-  }
-  deriving (Generic, Eq, Ord, Read, Show)
-  deriving Portray via Wrapped Generic Voicing
 
 data Articulated a = Articulated
   { _arVal :: a
@@ -94,7 +88,7 @@ data Repeat = Repeat
   deriving Portray via Wrapped Generic Repeat
 
 data TrackPiece
-  = Single (Advance (Phonon Rational (Articulated Voicing)))
+  = Single (Advance (Phonon Rational (Articulated Chord)))
   | Group [TrackPiece] Rational (Maybe Articulation)
   | Rep Repeat
   deriving (Generic, Eq, Ord, Read, Show)

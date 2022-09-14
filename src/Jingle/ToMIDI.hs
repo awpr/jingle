@@ -24,7 +24,7 @@ import qualified Numeric.NonNegative.Wrapper as NN
 import Jingle.Syntax
 import Jingle.Types (Comp(..), Track(..))
 
-type Piece = Advance (Phonon Rational (Articulated Voicing))
+type Piece = Advance (Phonon Rational (Articulated Chord))
 
 flatten :: [TrackPiece] -> [Piece]
 flatten ts = foldr (go 1 Nothing) [] ts
@@ -32,8 +32,8 @@ flatten ts = foldr (go 1 Nothing) [] ts
   adjust
     :: Rational
     -> Maybe Articulation
-    -> Phonon Rational (Articulated Voicing)
-    -> Phonon Rational (Articulated Voicing)
+    -> Phonon Rational (Articulated Chord)
+    -> Phonon Rational (Articulated Chord)
   adjust d a (Phonon d' mx) = Phonon (d * d') $
     mx <&> \ (Articulated x a') -> Articulated x (a' <|> a)
 
@@ -81,8 +81,8 @@ expandChordQuality q root = root : case q of
   seventh = root + 11
   octave = root + 12
 
-expandChord :: Voicing -> [Note]
-expandChord (Voicing root (Chord q adds)) =
+expandChord :: Chord -> [Note]
+expandChord (Chord root q adds) =
   maybe pure expandChordQuality q root ++
   map (\ (Interval x) -> Note x + root) adds
 
