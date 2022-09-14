@@ -10,14 +10,14 @@
 -- In order to give the user-facing syntax and parser more flexibility, we
 -- tolerate some duplication between the Core and AST datatypes.
 
-module Core (Sequence, Repeat(..), Item(..), Voicing(..), Phonon(..)) where
+module Jingle.Core (Sequence, Repeat(..), Item(..), Voicing(..), Phonon(..)) where
 
 import GHC.Generics (Generic)
 
 import Data.Portray (Portray)
 import Data.Wrapped (Wrapped(..))
 
-import Types (Note(..))
+import Jingle.Types (Note(..))
 
 -- | The top-level structure of a track.
 --

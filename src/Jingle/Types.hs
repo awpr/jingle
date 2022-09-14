@@ -3,7 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Miscellaneous types that don't fit squarely into a particular module.
-module Types (Note(..), Track(..), Comp(..)) where
+module Jingle.Types (Note(..), Track(..), Comp(..)) where
 
 import GHC.Generics (Generic)
 

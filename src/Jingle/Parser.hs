@@ -2,7 +2,7 @@
 {-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Parser (comp) where
+module Jingle.Parser (comp) where
 
 import Data.Char (ord)
 import Data.Functor (($>))
@@ -16,8 +16,8 @@ import Text.Megaparsec
 import Text.Megaparsec.Char (char, string, space)
 import Text.Megaparsec.Char.Lexer (decimal, lexeme, symbol)
 
-import AST
-import Types (Comp(..), Track(..))
+import Jingle.Syntax
+import Jingle.Types (Comp(..), Track(..))
 
 type Parser = Parsec Void Text
 

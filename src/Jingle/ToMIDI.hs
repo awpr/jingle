@@ -3,7 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-module ToMIDI (toMIDIFile, writeMIDIFile) where
+module Jingle.ToMIDI (toMIDIFile, writeMIDIFile) where
 
 import Control.Applicative ((<|>))
 import Data.Functor ((<&>))
@@ -21,8 +21,8 @@ import qualified Sound.MIDI.Message.Channel.Voice as Voice
 import qualified Data.EventList.Relative.TimeBody as EventList
 import qualified Numeric.NonNegative.Wrapper as NN
 
-import AST
-import Types (Comp(..), Track(..))
+import Jingle.Syntax
+import Jingle.Types (Comp(..), Track(..))
 
 type Piece = Advance (Phonon Rational (Articulated Voicing))
 

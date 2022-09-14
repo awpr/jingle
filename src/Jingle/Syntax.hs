@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module AST
+module Jingle.Syntax
     ( Note(..)
     , ChordQuality(..), Chord(..), Interval(..), Voicing(..)
     , Phonon(..), phDuration, phContent
@@ -21,7 +21,7 @@ import Control.Lens.TH (makeLenses)
 import Data.Portray (Portray)
 import Data.Wrapped (Wrapped(..))
 
-import Types (Note(..))
+import Jingle.Types (Note(..))
 
 data ChordQuality
   = Fifth    -- 1    5
