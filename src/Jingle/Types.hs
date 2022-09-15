@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -23,12 +24,12 @@ data Track a = Track
   { _trVoice :: Text
   , _trContents :: a
   }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Read, Show, Functor)
   deriving Portray via Wrapped Generic (Track a)
 
 data Comp a = Comp
   { _coTempo :: Int
   , _coTracks :: [Track a]
   }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Read, Show, Functor)
   deriving Portray via Wrapped Generic (Comp a)

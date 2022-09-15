@@ -1,5 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | A normalized, ascetic representation of synthesizer-bound music.
 --
@@ -11,23 +15,35 @@
 -- tolerate some duplication between the Core and AST datatypes.
 
 module Jingle.Core
-  ( Sequence, Repeat(..), Item(..)
-  , Voicing(..), Phonon(..)
+  ( Sequence(..), Repeat(..), Item(..)
+  , Voicing(..)
+  , Phonon(..), phDuration, phAnnotation, phNote
   , TrackContents
   ) where
 
 import GHC.Generics (Generic)
 
-import Data.Portray (Portray)
+import Control.Lens (makeLenses)
+import Data.Portray (Portray(..), Portrayal(..))
 import Data.Wrapped (Wrapped(..))
+import Data.EventList.Relative.TimeTime qualified as EventList
 
 import Jingle.Types (Note(..))
+
+portrayEventList :: (Portray t, Portray a) => EventList.T t a -> Portrayal
+portrayEventList el = case EventList.viewL el of
+  (dt, Nothing) -> Apply (Name "pause") [portray dt]
+  (dt, Just (x, el')) -> Apply (Name "cons") [portray dt, portray x, portrayEventList el']
 
 -- | The top-level structure of a track.
 --
 -- This consists of a list of either single audible elements or repeated
 -- sub-sequences.
-type Sequence t a = [Item t a]
+newtype Sequence t a = Sequence { getItems :: EventList.T t (Item t a) }
+  deriving (Generic, Eq, Ord, Show, Semigroup, Monoid)
+
+instance (Portray t, Portray a) => Portray (Sequence t a) where
+  portray (Sequence x) = Apply (Name "Sequence") [portrayEventList x]
 
 -- | A repeated section of a track with endings.
 --
@@ -38,18 +54,18 @@ data Repeat t a = Repeat
   , _repEnding :: Sequence t a
   , _repCount :: Int
   }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic (Repeat t a)
 
 -- | An element of the track sequence: a single note/chord or a repeat.
 data Item t a
-  = Single t a
+  = Single a
   | Rep (Repeat t a)
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic (Item t a)
 
 newtype Voicing = Voicing { _voNotes :: [Note] }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic Voicing
 
 data Phonon t ann a = Phonon
@@ -60,7 +76,10 @@ data Phonon t ann a = Phonon
   , _phNote :: a
     -- ^ The base note/voicing itself.
   }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic (Phonon t ann a)
 
+$(makeLenses ''Phonon)
+
 type TrackContents t ann a = Sequence t (Phonon t ann a)
+

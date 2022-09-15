@@ -11,7 +11,6 @@ module Jingle.Syntax
     , Advance(..)
     , Articulation(..), Articulated(..), arArticulation, arVal
     , Repeat(..), TrackPiece(..), TrackContents
-    , durations
     ) where
 
 import GHC.Generics (Generic)
@@ -93,10 +92,5 @@ data TrackPiece
   | Rep Repeat
   deriving (Generic, Eq, Ord, Read, Show)
   deriving Portray via Wrapped Generic TrackPiece
-
-durations :: TrackPiece -> [Rational]
-durations (Single (Advance _ (Phonon d _))) = [d]
-durations (Group ps d _) = concatMap (map (*d) . durations) ps
-durations (Rep (Repeat cont end _)) = concatMap durations (cont ++ end)
 
 type TrackContents = [TrackPiece]

@@ -1,63 +1,62 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Jingle.ToMIDI (toMIDIFile, writeMIDIFile) where
 
-import Control.Applicative ((<|>))
-import Data.Functor ((<&>))
-import Data.List (foldl', sortOn)
+import Data.Function ((&))
+import Data.List (foldl')
 import Data.Ratio (denominator)
 
-import Control.Lens ((%~), _2, mapped)
-import Control.Lens.TH (makeLenses)
+import Control.Lens ((%~))
 
-import qualified Sound.MIDI.File as MIDI
-import qualified Sound.MIDI.File.Save as MIDI
-import qualified Sound.MIDI.File.Event as Event
-import qualified Sound.MIDI.Message.Channel as Channel
-import qualified Sound.MIDI.Message.Channel.Voice as Voice
-import qualified Data.EventList.Relative.TimeBody as EventList
-import qualified Numeric.NonNegative.Wrapper as NN
+import Sound.MIDI.File qualified as MIDI
+import Sound.MIDI.File.Save qualified as MIDI
+import Sound.MIDI.File.Event qualified as Event
+import Sound.MIDI.Message.Channel qualified as Channel
+import Sound.MIDI.Message.Channel.Voice qualified as Voice
+import Data.EventList.Relative.TimeBody qualified as TimeBody
+import Data.EventList.Relative.TimeTime qualified as TimeTime
+import Numeric.NonNegative.Class qualified as NN (C)
+import Numeric.NonNegative.Wrapper qualified as NN
 
+import Jingle.Core
 import Jingle.Syntax
-import Jingle.Types (Comp(..), Track(..))
+  ( ChordQuality(..), Chord(..), Interval(..)
+  , Articulation(..)
+  )
+import Jingle.Types (Comp(..), Track(..), Note(..))
 
-type Piece = Advance (Phonon Rational (Articulated Chord))
+type FlatTrack t ann a = TimeTime.T t (Phonon t ann a)
 
-flatten :: [TrackPiece] -> [Piece]
-flatten ts = foldr (go 1 Nothing) [] ts
+flatten :: forall t ann a. NN.C t => TrackContents t ann a -> FlatTrack t ann a
+flatten (Sequence el) = TimeTime.foldr (&) f TimeTime.pause el
  where
-  adjust
-    :: Rational
-    -> Maybe Articulation
-    -> Phonon Rational (Articulated Chord)
-    -> Phonon Rational (Articulated Chord)
-  adjust d a (Phonon d' mx) = Phonon (d * d') $
-    mx <&> \ (Articulated x a') -> Articulated x (a' <|> a)
-
-  go
-    :: Rational
-    -> Maybe Articulation
-    -> TrackPiece
-    -> [Piece]
-    -> [Piece]
-  go d a (Single x) rest = fmap (adjust d a) x : rest
-  go d a (Group ps d' a') rest = foldr (go (d * d') (a' <|> a)) rest ps
-  go d a (Rep (Repeat content end n)) rest = rep d a content end n rest
+  f
+    :: Item t (Phonon t ann a)
+    -> FlatTrack t ann a
+    -> t
+    -> FlatTrack t ann a
+  f (Single x) rest dt = TimeTime.cons dt x rest
+  f (Rep (Repeat (Sequence content) (Sequence end) n)) rest dt =
+    TimeTime.delay dt $ rep content end n rest
 
   rep
-    :: Rational
-    -> Maybe Articulation
-    -> [TrackPiece]
-    -> [TrackPiece]
+    :: TimeTime.T t (Item t (Phonon t ann a))
+    -> TimeTime.T t (Item t (Phonon t ann a))
     -> Int
-    -> [Piece]
-    -> [Piece]
-  rep _ _ _ _ n rest | n <= 0 = rest
-  rep d a cont _ 1 rest = foldr (go d a) rest cont
-  rep d a cont end n rest = foldr (go d a) (rep d a cont end (n-1) rest) (cont ++ end)
+    -> FlatTrack t ann a
+    -> FlatTrack t ann a
+  rep _ _ n rest | n <= 0 = rest
+  rep cont _ 1 rest =
+    TimeTime.foldr (&) f (flip TimeTime.delay rest) cont
+  rep cont end n rest =
+    TimeTime.foldr (&) f
+      (flip TimeTime.delay $ rep cont end (n-1) rest)
+      (TimeTime.append cont end)
 
 -- Random wishlist items:
 -- * Default to the octave closest to the last note
@@ -89,29 +88,15 @@ expandChord (Chord root q adds) =
 noteToMIDI :: Note -> Voice.Pitch
 noteToMIDI (Note x) = Voice.toPitch $ x + 12
 
-quantizeTimes :: Int -> [Advance (Phonon Rational a)] -> [Advance (Phonon Int a)]
-quantizeTimes denom = traverse . mapped . phDuration %~ truncate . (* fromIntegral denom)
+quantizeTimes
+  :: Integer
+  -> FlatTrack NN.Rational ann a
+  -> FlatTrack NN.Integer ann a
+quantizeTimes denom =
+  fmap (phDuration %~ truncate . (* fromIntegral denom)) .
+  TimeTime.mapTime (truncate . (* fromIntegral denom))
 
-data Timestamped a = Timestamped { _tsTime :: Integer, _tsVal :: a }
-  deriving Functor
-
-$(makeLenses ''Timestamped)
-
-_unused :: ()
-_unused = const () (tsTime @() @[])
-
-toTimestamped :: [Advance (Phonon Int a)] -> [Timestamped (Int, a)]
-toTimestamped = go 0
- where
-  go _ [] = []
-  go t (Advance adv (Phonon d c) : ps) =
-    maybe
-      id
-      (\ v -> (Timestamped t (d, v) :))
-      c
-      (go (t + if adv then fromIntegral d else 0) ps)
-
-interpArticulation :: Maybe Articulation -> (Int, Int)
+interpArticulation :: Maybe Articulation -> (NN.Integer, Int)
 interpArticulation art =
   case art of
     Nothing -> (7, 96)
@@ -121,48 +106,52 @@ interpArticulation art =
     Just Tenuto -> (8, 112)
     Just Legato -> (8, 96)
 
-data MIDINote = MIDINote Voice.Pitch Voice.Velocity
-
-toMIDINote :: (Int, Articulated Note) -> (Int, MIDINote)
-toMIDINote (dur, Articulated x art) =
-  let (durFactor, vel) = interpArticulation art
-  in  ((durFactor * dur) `div` 8, MIDINote (noteToMIDI x) (Voice.toVelocity vel))
-
-deltaEncode :: [Timestamped a] -> [(NN.Integer, a)]
-deltaEncode = go 0
+toMIDIEvents :: Phonon NN.Integer (Maybe Articulation) Note -> [(NN.Integer, Event.T)]
+toMIDIEvents (Phonon dur art x) =
+  [ (0, mkEvent Voice.NoteOn)
+  , ((durFactor * dur) `div` 8, mkEvent Voice.NoteOff)
+  ]
  where
-  go _ [] = []
-  go t (Timestamped t' x : xs) = (NN.fromNumber (t' - t), x) : go t' xs
+  mkEvent f =
+    Event.MIDIEvent $
+      Channel.Cons
+        (Channel.toChannel 0)
+        (Channel.Voice $ f (noteToMIDI x) (Voice.toVelocity vel))
+  (durFactor, vel) = interpArticulation art
 
-toEvents :: [Timestamped (Int, MIDINote)] -> [Timestamped Event.T]
-toEvents =
-  concatMap
-    (\ (Timestamped t (d, x)) ->
-      [ Timestamped t (wrap Voice.NoteOn x)
-      , Timestamped (t + fromIntegral d) (wrap Voice.NoteOff x)
-      ])
+toTimeBody :: TimeTime.T t a -> TimeBody.T t a
+toTimeBody =
+  TimeTime.foldr (&)
+    (\ x rest dt -> TimeBody.cons dt x rest)
+    (const TimeBody.empty)
 
- where
-  wrap f (MIDINote x vel) = Event.MIDIEvent $
-    Channel.Cons (Channel.toChannel 0) (Channel.Voice $ f x vel)
+toTrack
+  :: Integer
+  -> FlatTrack NN.Rational (Maybe Articulation) Chord
+  -> MIDI.Track
+toTrack denom =
+  toTimeBody .
+  TimeTime.moveBackward .
+  TimeTime.flatten .
+  fmap (concatMap toMIDIEvents . phNote expandChord) .
+  quantizeTimes denom
 
-toTrack :: Int -> [TrackPiece] -> MIDI.Track
-toTrack denom pcs =
-  EventList.fromPairList $ deltaEncode $ sortOn _tsTime $ toEvents $
-  map (fmap toMIDINote) $
-  concatMap (tsVal . _2 . arVal $ expandChord) $
-  toTimestamped $
-  quantizeTimes denom $
-  flatten pcs
-
-toMIDIFile :: Comp [TrackPiece] -> MIDI.T
+toMIDIFile :: Comp (TrackContents NN.Rational (Maybe Articulation) Chord) -> MIDI.T
 toMIDIFile (Comp _tempo ts) =
   MIDI.Cons
     (if length ts > 1 then MIDI.Parallel else MIDI.Mixed)
     (MIDI.Ticks (NN.fromNumber $ fromIntegral denom))
-    (map (toTrack (fromIntegral denom) . _trContents) ts)
+    (map (toTrack denom . _trContents) flattened)
  where
-  denom = 8 * foldl' lcm 1 [denominator x | t <- ts, p <- _trContents t, x <- durations p ]
+  flattened = fmap flatten <$> ts
+  denom = 8 * foldl' lcm 1
+    [ denominator (NN.toNumber x)
+    | t <- flattened
+    , x <- TimeTime.getTimes (_trContents t)
+    ]
 
-writeMIDIFile :: FilePath -> Comp [TrackPiece] -> IO ()
+writeMIDIFile
+  :: FilePath
+  -> Comp (TrackContents NN.Rational (Maybe Articulation) Chord)
+  -> IO ()
 writeMIDIFile p = MIDI.toFile p . toMIDIFile
