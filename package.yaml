@@ -52,4 +52,7 @@ executables:
     main: Main.hs
     dependencies:
       - jingle
+      - directory
       - optparse-applicative
+      - bytestring
+      - process
