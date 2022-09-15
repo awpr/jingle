@@ -61,7 +61,7 @@ main = do
           BL.hPut h (MIDI.toByteString midi)
           hClose h
           callProcess "fluidsynth"
-            [ "-a", "alsa", "-m", "alsa_seq", "-l"
+            [ "-a", "alsa", "-m", "alsa_seq", "-l", "-g", "1"
             , "-i", "/usr/share/soundfonts/FluidR3_GM.sf2"
             , name
             ]
