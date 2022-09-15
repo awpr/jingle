@@ -45,3 +45,11 @@ ghc-options:
 
 library:
   source-dirs: src
+
+executables:
+  jingle:
+    source-dirs: app
+    main: Main.hs
+    dependencies:
+      - jingle
+      - optparse-applicative
