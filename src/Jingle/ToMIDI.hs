@@ -16,6 +16,7 @@ import Control.Lens ((%~))
 import Sound.MIDI.File qualified as MIDI
 import Sound.MIDI.File.Save qualified as MIDI
 import Sound.MIDI.File.Event qualified as Event
+import Sound.MIDI.File.Event.Meta qualified as Meta
 import Sound.MIDI.Message.Channel qualified as Channel
 import Sound.MIDI.Message.Channel.Voice qualified as Voice
 import Data.EventList.Relative.TimeBody qualified as TimeBody
@@ -126,24 +127,29 @@ toTimeBody =
     (const TimeBody.empty)
 
 toTrack
-  :: Integer
+  :: NN.Int
+  -> Integer
   -> FlatTrack NN.Rational (Maybe Articulation) Chord
   -> MIDI.Track
-toTrack denom =
+toTrack usPerQuarter denom =
+  TimeBody.cons 0 (Event.MetaEvent (Meta.SetTempo usPerQuarter)) .
   toTimeBody .
+  flip TimeTime.append
+    (TimeTime.cons 0 (Event.MetaEvent Meta.EndOfTrack) (TimeTime.pause 0)) .
   TimeTime.moveBackward .
   TimeTime.flatten .
   fmap (concatMap toMIDIEvents . phNote expandChord) .
   quantizeTimes denom
 
 toMIDIFile :: Comp (TrackContents NN.Rational (Maybe Articulation) Chord) -> MIDI.T
-toMIDIFile (Comp _tempo ts) =
+toMIDIFile (Comp tempo ts) =
   MIDI.Cons
     (if length ts > 1 then MIDI.Parallel else MIDI.Mixed)
     (MIDI.Ticks (NN.fromNumber $ fromIntegral denom))
-    (map (toTrack denom . _trContents) flattened)
+    (map (toTrack usPerQuarter denom . _trContents) flattened)
  where
   flattened = fmap flatten <$> ts
+  usPerQuarter = NN.fromNumber $ 60_000_000 `div` tempo
   denom = 8 * foldl' lcm 1
     [ denominator (NN.toNumber x)
     | t <- flattened
