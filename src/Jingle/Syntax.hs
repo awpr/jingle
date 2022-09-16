@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Jingle.Syntax
-    ( Note(..)
+    ( Note(..), NoteName(..), Accidental(..)
     , ChordQuality(..), Chord(..), Interval(..)
     , Phonon(..), phDuration, phContent
     , Advance(..)
@@ -20,7 +20,19 @@ import Control.Lens.TH (makeLenses)
 import Data.Portray (Portray)
 import Data.Wrapped (Wrapped(..))
 
-import Jingle.Types (Note(..))
+data NoteName = A | B | C | D | E | F | G
+  deriving (Generic, Eq, Ord, Enum, Show)
+  deriving Portray via Wrapped Generic NoteName
+
+data Accidental
+  = Sharp | DoubleSharp | Natural | Flat | DoubleFlat
+  deriving (Generic, Eq, Ord, Enum, Show)
+  deriving Portray via Wrapped Generic Accidental
+
+data Note
+  = Named (Maybe Int) NoteName (Maybe Accidental)
+  deriving (Generic, Eq, Ord, Show)
+  deriving Portray via Wrapped Generic Note
 
 data ChordQuality
   = Fifth    -- 1    5
@@ -30,11 +42,11 @@ data ChordQuality
   | Aug Bool -- 1  3 #5 [ b7]
   | Dim Bool -- 1 b3 b5 [bb7]
   | HalfDim  -- 1 b3 b5   b7
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic ChordQuality
 
 newtype Interval = Interval { intervalValue :: Int }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic Interval
 
 data Chord = Chord
@@ -42,7 +54,7 @@ data Chord = Chord
   , _cQuality :: Maybe ChordQuality
   , _cAdd :: [Interval]
   }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic Chord
 
 data Articulation
@@ -51,14 +63,14 @@ data Articulation
   | Accent
   | Tenuto
   | Legato
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic Articulation
 
 data Articulated a = Articulated
   { _arVal :: a
   , _arArticulation :: Maybe Articulation
   }
-  deriving (Generic, Eq, Ord, Read, Show, Functor)
+  deriving (Generic, Eq, Ord, Show, Functor)
   deriving Portray via Wrapped Generic (Articulated a)
 
 $(makeLenses ''Articulated)
@@ -69,13 +81,13 @@ data Phonon t a = Phonon
   { _phDuration :: t
   , _phContent :: Maybe a
   }
-  deriving (Generic, Eq, Ord, Read, Show, Functor)
+  deriving (Generic, Eq, Ord, Show, Functor)
   deriving Portray via Wrapped Generic (Phonon t a)
 
 $(makeLenses ''Phonon)
 
 data Advance a = Advance Bool a
-  deriving (Generic, Eq, Ord, Read, Show, Functor)
+  deriving (Generic, Eq, Ord, Show, Functor)
   deriving Portray via Wrapped Generic (Advance a)
 
 data Repeat = Repeat
@@ -83,14 +95,14 @@ data Repeat = Repeat
   , _repEnding :: [TrackPiece]
   , _repCount :: Int
   }
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic Repeat
 
 data TrackPiece
   = Single (Advance (Phonon Rational (Articulated Chord)))
   | Group [TrackPiece] Rational (Maybe Articulation)
   | Rep Repeat
-  deriving (Generic, Eq, Ord, Read, Show)
+  deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic TrackPiece
 
 type TrackContents = [TrackPiece]

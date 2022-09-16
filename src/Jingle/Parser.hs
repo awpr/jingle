@@ -4,7 +4,6 @@
 
 module Jingle.Parser (comp) where
 
-import Data.Char (ord)
 import Data.Functor (($>))
 import Data.Maybe (isJust)
 import Data.Ratio ((%))
@@ -21,23 +20,20 @@ import Jingle.Types (Comp(..), Track(..))
 
 type Parser = Parsec Void Text
 
+noteName :: Parser NoteName
+noteName = choice $ zipWith (($>) . char) ['A'..'G'] [A .. G]
+
+accidental :: Parser Accidental
+accidental = choice
+  [ DoubleSharp <$ string "##"
+  , Sharp <$ char '#'
+  , DoubleFlat <$ string "bb"
+  , Flat <$ char 'b'
+  , Natural <$ char 'n'
+  ]
+
 note :: Parser Note
-note =
-  do
-    octave <- option 4 decimal
-    nm <- satisfy (\x -> x >= 'A' && x <= 'G')
-    acc <- choice
-      [ 1 <$ char '#'
-      , -1 <$ char 'b'
-      , pure 0
-      ]
-    pure $ Note $ 12*octave + (notes V.! (ord nm - ord 'A')) + acc
- where
-  -- Starting from A, how many semitones is each note above the same-octave C?
-  --
-  -- The numbers are weird because the octave numbering system itself is weird.
-  -- I don't make the rules.
-  notes = V.fromList [9, 11, 0, 2, 4, 5, 7]
+note = Named <$> optional decimal <*> noteName <*> optional accidental
 
 flag :: Parser a -> Parser Bool
 flag = fmap isJust . optional

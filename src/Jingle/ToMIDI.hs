@@ -10,10 +10,12 @@ module Jingle.ToMIDI (toMIDIFile, writeMIDIFile) where
 
 import Data.Function ((&))
 import Data.List (foldl')
+import Data.Maybe (fromMaybe)
 import Data.Ratio (denominator)
 
 import Control.Lens ((%~))
 import Data.Text (Text)
+import Data.Vector qualified as V
 
 import Sound.MIDI.File qualified as MIDI
 import Sound.MIDI.File.Save qualified as MIDI
@@ -30,8 +32,9 @@ import Jingle.Core
 import Jingle.Patches (toGeneralMIDIProgram)
 import Jingle.Syntax
   ( ChordQuality(..), Chord(..), Interval(..)
-  , Articulation(..)
+  , Articulation(..), Accidental(..)
   )
+import Jingle.Syntax qualified as Syntax
 import Jingle.Types (Comp(..), Track(..), Note(..))
 
 type FlatTrack t ann a = TimeTime.T t (Phonon t ann a)
@@ -84,10 +87,29 @@ expandChordQuality q root = root : case q of
   seventh = root + 11
   octave = root + 12
 
+interpNote :: Syntax.Note -> Note
+interpNote (Syntax.Named octave name acc) =
+  Note $ 12 * fromMaybe 4 octave + (notes V.! fromEnum name) + shift
+ where
+  shift = case fromMaybe Natural acc of
+    DoubleSharp -> 2
+    Sharp -> 1
+    Natural -> 0
+    Flat -> -1
+    DoubleFlat -> -2
+
+  -- Starting from A, how many semitones is each note above the same-octave C?
+  --
+  -- The numbers are weird because the octave numbering system itself is weird.
+  -- I don't make the rules.
+  notes = V.fromList [9, 11, 0, 2, 4, 5, 7]
+
 expandChord :: Chord -> [Note]
 expandChord (Chord root q adds) =
-  maybe pure expandChordQuality q root ++
-  map (\ (Interval x) -> Note x + root) adds
+  maybe pure expandChordQuality q root' ++
+  map (\ (Interval x) -> Note x + root') adds
+ where
+  root' = interpNote root
 
 noteToMIDI :: Note -> Voice.Pitch
 noteToMIDI (Note x) = Voice.toPitch $ x + 12
