@@ -13,6 +13,7 @@ import Data.List (foldl')
 import Data.Ratio (denominator)
 
 import Control.Lens ((%~))
+import Data.Text (Text)
 
 import Sound.MIDI.File qualified as MIDI
 import Sound.MIDI.File.Save qualified as MIDI
@@ -26,6 +27,7 @@ import Numeric.NonNegative.Class qualified as NN (C)
 import Numeric.NonNegative.Wrapper qualified as NN
 
 import Jingle.Core
+import Jingle.Patches (toGeneralMIDIProgram)
 import Jingle.Syntax
   ( ChordQuality(..), Chord(..), Interval(..)
   , Articulation(..)
@@ -134,13 +136,22 @@ toTimeBody end =
     (\ x rest dt -> TimeBody.cons dt x rest)
     (\ dt -> maybe id (TimeBody.cons dt) end TimeBody.empty)
 
+programChange :: Channel.Channel -> Text -> Maybe Event.T
+programChange chan =
+  fmap
+    (Event.MIDIEvent . Channel.Cons chan .
+     Channel.Voice . Voice.ProgramChange) .
+  toGeneralMIDIProgram
+
 -- | Lower one 'FlatTrack' to a single channel of MIDI data.
 toChannel
   :: Channel.Channel
   -> Integer
+  -> Text
   -> FlatTrack NN.Rational (Maybe Articulation) Chord
   -> TimeTime.T Meta.ElapsedTime Event.T
-toChannel chan denom =
+toChannel chan denom voice =
+  maybe id (TimeTime.cons 0) (programChange chan voice) .
   TimeTime.moveBackward .
   TimeTime.flatten .
   fmap (concatMap (toMIDIEvents chan) . phNote expandChord) .
@@ -162,7 +173,7 @@ toTrack denom tempo =
   maybe id (TimeBody.cons 0 . Event.MetaEvent . Meta.SetTempo) tempo .
   toTimeBody (Just $ Event.MetaEvent Meta.EndOfTrack) .
   foldr
-    (\ (i, Track _ ch) tr -> TimeTime.merge (toChannel i denom ch) tr)
+    (\ (i, Track voice ch) tr -> TimeTime.merge (toChannel i denom voice ch) tr)
     (TimeTime.pause 0)
 
 zipRest :: [a] -> [b] -> ([(a, b)], [b])
