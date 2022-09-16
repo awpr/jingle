@@ -120,11 +120,16 @@ toMIDIEvents (Phonon dur art x) =
         (Channel.Voice $ f (noteToMIDI x) (Voice.toVelocity vel))
   (durFactor, vel) = interpArticulation art
 
-toTimeBody :: TimeTime.T t a -> TimeBody.T t a
-toTimeBody =
+-- | Converte 'TimeTime.T' to 'TimeBody.T' with an optional terminator.
+--
+-- If 'Just', the result ends with the given value, after any trailing
+-- delta-time of the 'TimeTime.T'; if 'Nothing', any trailing delta-time is
+-- discarded and the result ends with the last @body@ in the 'TimeTime.T'.
+toTimeBody :: Maybe a -> TimeTime.T t a -> TimeBody.T t a
+toTimeBody end =
   TimeTime.foldr (&)
     (\ x rest dt -> TimeBody.cons dt x rest)
-    (const TimeBody.empty)
+    (\ dt -> maybe id (TimeBody.cons dt) end TimeBody.empty)
 
 toTrack
   :: NN.Int
@@ -133,9 +138,7 @@ toTrack
   -> MIDI.Track
 toTrack usPerQuarter denom =
   TimeBody.cons 0 (Event.MetaEvent (Meta.SetTempo usPerQuarter)) .
-  toTimeBody .
-  flip TimeTime.append
-    (TimeTime.cons 0 (Event.MetaEvent Meta.EndOfTrack) (TimeTime.pause 0)) .
+  toTimeBody (Just $ Event.MetaEvent Meta.EndOfTrack) .
   TimeTime.moveBackward .
   TimeTime.flatten .
   fmap (concatMap toMIDIEvents . phNote expandChord) .
