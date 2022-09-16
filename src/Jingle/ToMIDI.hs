@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -107,16 +108,18 @@ interpArticulation art =
     Just Tenuto -> (8, 112)
     Just Legato -> (8, 96)
 
-toMIDIEvents :: Phonon NN.Integer (Maybe Articulation) Note -> [(NN.Integer, Event.T)]
-toMIDIEvents (Phonon dur art x) =
+toMIDIEvents
+  :: Channel.Channel
+  -> Phonon NN.Integer (Maybe Articulation) Note
+  -> [(NN.Integer, Event.T)]
+toMIDIEvents chan (Phonon dur art x) =
   [ (0, mkEvent Voice.NoteOn)
   , ((durFactor * dur) `div` 8, mkEvent Voice.NoteOff)
   ]
  where
   mkEvent f =
     Event.MIDIEvent $
-      Channel.Cons
-        (Channel.toChannel 0)
+      Channel.Cons chan
         (Channel.Voice $ f (noteToMIDI x) (Voice.toVelocity vel))
   (durFactor, vel) = interpArticulation art
 
@@ -131,27 +134,61 @@ toTimeBody end =
     (\ x rest dt -> TimeBody.cons dt x rest)
     (\ dt -> maybe id (TimeBody.cons dt) end TimeBody.empty)
 
-toTrack
-  :: NN.Int
+-- | Lower one 'FlatTrack' to a single channel of MIDI data.
+toChannel
+  :: Channel.Channel
   -> Integer
   -> FlatTrack NN.Rational (Maybe Articulation) Chord
-  -> MIDI.Track
-toTrack usPerQuarter denom =
-  TimeBody.cons 0 (Event.MetaEvent (Meta.SetTempo usPerQuarter)) .
-  toTimeBody (Just $ Event.MetaEvent Meta.EndOfTrack) .
+  -> TimeTime.T Meta.ElapsedTime Event.T
+toChannel chan denom =
   TimeTime.moveBackward .
   TimeTime.flatten .
-  fmap (concatMap toMIDIEvents . phNote expandChord) .
+  fmap (concatMap (toMIDIEvents chan) . phNote expandChord) .
   quantizeTimes denom
+
+-- | All of the MIDI channel numbers usable for arbitrary instruments.
+--
+-- For whatever reason, General MIDI reserves channel 10 for percussion, so it
+-- cannot be allocated to any non-percussion instrument.
+normalChannels :: [Channel.Channel]
+normalChannels = Channel.toChannel <$> [1..9] ++ [11..16]
+
+toTrack
+  :: Integer
+  -> Maybe NN.Int
+  -> [(Channel.Channel, Track (FlatTrack NN.Rational (Maybe Articulation) Chord))]
+  -> MIDI.Track
+toTrack denom tempo =
+  maybe id (TimeBody.cons 0 . Event.MetaEvent . Meta.SetTempo) tempo .
+  toTimeBody (Just $ Event.MetaEvent Meta.EndOfTrack) .
+  foldr
+    (\ (i, Track _ ch) tr -> TimeTime.merge (toChannel i denom ch) tr)
+    (TimeTime.pause 0)
+
+zipRest :: [a] -> [b] -> ([(a, b)], [b])
+zipRest _ [] = ([], [])
+zipRest [] ys = ([], ys)
+zipRest (x:xs) (y:ys) = let !(xys, rest) = zipRest xs ys in ((x, y) : xys, rest)
+
+zipChunks :: [a] -> [b] -> [[(a, b)]]
+zipChunks _ [] = []
+zipChunks xs ys =
+  let !(xys, ys') = zipRest xs ys
+  in  xys : zipChunks xs ys'
 
 toMIDIFile :: Comp (TrackContents NN.Rational (Maybe Articulation) Chord) -> MIDI.T
 toMIDIFile (Comp tempo ts) =
   MIDI.Cons
-    (if length ts > 1 then MIDI.Parallel else MIDI.Mixed)
+    (if length tracks > 1 then MIDI.Parallel else MIDI.Mixed)
     (MIDI.Ticks (NN.fromNumber $ fromIntegral denom))
-    (map (toTrack usPerQuarter denom . _trContents) flattened)
+    (zipWith (toTrack denom) (Just usPerQuarter : repeat Nothing) tracks)
  where
+  flattened :: [Track (FlatTrack NN.Rational (Maybe Articulation) Chord)]
   flattened = fmap flatten <$> ts
+
+  tracks :: [[(Channel.Channel, Track (FlatTrack NN.Rational (Maybe Articulation) Chord))]]
+  tracks = zipChunks normalChannels flattened
+
   usPerQuarter = NN.fromNumber $ 60_000_000 `div` tempo
   denom = 8 * foldl' lcm 1
     [ denominator (NN.toNumber x)
