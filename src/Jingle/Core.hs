@@ -21,19 +21,27 @@ module Jingle.Core
   , TrackContents
   ) where
 
+import Data.Bifunctor (first)
 import GHC.Generics (Generic)
 
 import Control.Lens (makeLenses)
-import Data.Portray (Portray(..), Portrayal(..))
+import Data.Portray (Portray(..), Portrayal(..), PortrayDataCons(..))
 import Data.Wrapped (Wrapped(..))
 import Data.EventList.Relative.TimeTime qualified as EventList
 
 import Jingle.Types (Note(..))
 
+toList :: EventList.T t a -> ([(t, a)], t)
+toList el = case EventList.viewL el of
+  (dt, Nothing) -> ([], dt)
+  (dt, Just (x, el')) -> first ((dt, x):) $ toList el'
+
 portrayEventList :: (Portray t, Portray a) => EventList.T t a -> Portrayal
-portrayEventList el = case EventList.viewL el of
-  (dt, Nothing) -> Apply (Name "pause") [portray dt]
-  (dt, Just (x, el')) -> Apply (Name "cons") [portray dt, portray x, portrayEventList el']
+portrayEventList el =
+  let (xs, dt) = toList el
+  in  case xs of
+        [] -> Apply (Name "pause") [portray dt]
+        _  -> Apply (Name "fromList") [portray xs, portray dt]
 
 -- | The top-level structure of a track.
 --
@@ -55,7 +63,7 @@ data Repeat t a = Repeat
   , _repCount :: Int
   }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via Wrapped Generic (Repeat t a)
+  deriving Portray via PortrayDataCons (Repeat t a)
 
 -- | An element of the track sequence: a single note/chord or a repeat.
 data Item t a
@@ -66,7 +74,7 @@ data Item t a
 
 newtype Voicing = Voicing { _voNotes :: [Note] }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via Wrapped Generic Voicing
+  deriving Portray via PortrayDataCons Voicing
 
 data Phonon t ann a = Phonon
   { _phDuration :: t
@@ -77,9 +85,8 @@ data Phonon t ann a = Phonon
     -- ^ The base note/voicing itself.
   }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via Wrapped Generic (Phonon t ann a)
+  deriving Portray via PortrayDataCons (Phonon t ann a)
 
 $(makeLenses ''Phonon)
 
 type TrackContents t ann a = Sequence t (Phonon t ann a)
-

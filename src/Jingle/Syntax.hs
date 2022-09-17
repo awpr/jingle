@@ -17,7 +17,7 @@ import GHC.Generics (Generic)
 
 import Control.Lens.TH (makeLenses)
 
-import Data.Portray (Portray)
+import Data.Portray (Portray, PortrayDataCons(..))
 import Data.Wrapped (Wrapped(..))
 
 data NoteName = A | B | C | D | E | F | G
@@ -47,7 +47,7 @@ data ChordQuality
 
 newtype Interval = Interval { intervalValue :: Int }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via Wrapped Generic Interval
+  deriving Portray via PortrayDataCons Interval
 
 data Chord = Chord
   { _cRoot :: Note
@@ -55,7 +55,7 @@ data Chord = Chord
   , _cAdd :: [Interval]
   }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via Wrapped Generic Chord
+  deriving Portray via PortrayDataCons Chord
 
 data Articulation
   = Staccato
@@ -71,7 +71,7 @@ data Articulated a = Articulated
   , _arArticulation :: Maybe Articulation
   }
   deriving (Generic, Eq, Ord, Show, Functor)
-  deriving Portray via Wrapped Generic (Articulated a)
+  deriving Portray via PortrayDataCons (Articulated a)
 
 $(makeLenses ''Articulated)
 
@@ -82,7 +82,7 @@ data Phonon t a = Phonon
   , _phContent :: Maybe a
   }
   deriving (Generic, Eq, Ord, Show, Functor)
-  deriving Portray via Wrapped Generic (Phonon t a)
+  deriving Portray via PortrayDataCons (Phonon t a)
 
 $(makeLenses ''Phonon)
 
@@ -96,7 +96,7 @@ data Repeat = Repeat
   , _repCount :: Int
   }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via Wrapped Generic Repeat
+  deriving Portray via PortrayDataCons Repeat
 
 data TrackPiece
   = Single (Advance (Phonon Rational (Articulated Chord)))

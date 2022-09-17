@@ -5,7 +5,7 @@ packages:
 
 extra-deps:
   - git: https://github.com/awpr/portray.git
-    commit: 0bfcb8a5f20f0cdfe3756c9ae1941c9b36c6828b
+    commit: e0f68eede0896bdc9fc8998a1eb7678734c8dec9
     subdirs:
       - portray
       - portray-diff
