@@ -183,8 +183,12 @@ toChannel chan denom voice =
 --
 -- For whatever reason, General MIDI reserves channel 10 for percussion, so it
 -- cannot be allocated to any non-percussion instrument.
+--
+-- For whatever reason, MIDI docs tend to use 1-based numbering, but the midi
+-- library tends to use zero-based numbering.  So (probably?) 10 is actually 9
+-- and the usable channels start at zero?
 normalChannels :: [Channel.Channel]
-normalChannels = Channel.toChannel <$> [1..9] ++ [11..16]
+normalChannels = Channel.toChannel <$> [0..8] ++ [10..15]
 
 toTrack
   :: Integer
