@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -16,7 +19,7 @@
 
 module Jingle.Core
   ( Sequence(..), Repeat(..), Item(..)
-  , Voicing(..)
+  , Note(..), Voicing(..)
   , Phonon(..), phDuration, phAnnotation, phNote
   , TrackContents
   ) where
@@ -28,8 +31,6 @@ import Control.Lens (makeLenses)
 import Data.Portray (Portray(..), Portrayal(..), PortrayDataCons(..))
 import Data.Wrapped (Wrapped(..))
 import Data.EventList.Relative.TimeTime qualified as EventList
-
-import Jingle.Types (Note(..))
 
 toList :: EventList.T t a -> ([(t, a)], t)
 toList el = case EventList.viewL el of
@@ -48,7 +49,11 @@ portrayEventList el =
 -- This consists of a list of either single audible elements or repeated
 -- sub-sequences.
 newtype Sequence t a = Sequence { getItems :: EventList.T t (Item t a) }
-  deriving (Generic, Eq, Ord, Show, Semigroup, Monoid)
+  deriving
+    ( Generic, Eq, Ord, Show
+    , Semigroup, Monoid
+    , Functor, Foldable, Traversable
+    )
 
 instance (Portray t, Portray a) => Portray (Sequence t a) where
   portray (Sequence x) = Apply (Name "Sequence") [portrayEventList x]
@@ -62,15 +67,23 @@ data Repeat t a = Repeat
   , _repEnding :: Sequence t a
   , _repCount :: Int
   }
-  deriving (Generic, Eq, Ord, Show)
+  deriving (Generic, Eq, Ord, Show, Functor, Foldable, Traversable)
   deriving Portray via PortrayDataCons (Repeat t a)
 
 -- | An element of the track sequence: a single note/chord or a repeat.
 data Item t a
   = Single a
   | Rep (Repeat t a)
-  deriving (Generic, Eq, Ord, Show)
+  deriving (Generic, Eq, Ord, Show, Functor, Foldable, Traversable)
   deriving Portray via Wrapped Generic (Item t a)
+
+-- | A single 12-tone-equal-temperament note (in a specific octave).
+newtype Note = Note
+  { noteValue :: Int
+    -- ^ Chromatically ascending 12-tet, with C0 assigned to "0"
+  }
+  deriving (Generic, Eq, Ord, Show, Num, Enum, Real, Integral)
+  deriving Portray via Wrapped Generic Note
 
 newtype Voicing = Voicing { _voNotes :: [Note] }
   deriving (Generic, Eq, Ord, Show)

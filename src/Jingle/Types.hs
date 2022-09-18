@@ -2,34 +2,35 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | Miscellaneous types that don't fit squarely into a particular module.
-module Jingle.Types (Note(..), Track(..), Comp(..)) where
+module Jingle.Types
+  ( Track(..), trVoice, trContents
+  , Score(..), scTempo, scTracks
+  ) where
 
 import GHC.Generics (Generic)
 
+import Control.Lens (makeLenses)
 import Data.Portray (Portray)
 import Data.Wrapped (Wrapped(..))
 import Data.Text (Text)
-
--- | A single 12-tone-equal-temperament note (in a specific octave).
-newtype Note = Note
-  { noteValue :: Int
-    -- ^ Chromatically ascending 12-tet, with C0 assigned to "0"
-  }
-  deriving (Generic, Eq, Ord, Read, Show, Num, Enum, Real, Integral)
-  deriving Portray via Wrapped Generic Note
 
 data Track a = Track
   { _trVoice :: Text
   , _trContents :: a
   }
-  deriving (Generic, Eq, Ord, Read, Show, Functor)
+  deriving (Generic, Eq, Ord, Show, Functor)
   deriving Portray via Wrapped Generic (Track a)
 
-data Comp a = Comp
-  { _coTempo :: Int
-  , _coTracks :: [Track a]
+$(makeLenses ''Track)
+
+data Score a = Score
+  { _scTempo :: Int
+  , _scTracks :: [Track a]
   }
-  deriving (Generic, Eq, Ord, Read, Show, Functor)
-  deriving Portray via Wrapped Generic (Comp a)
+  deriving (Generic, Eq, Ord, Show, Functor)
+  deriving Portray via Wrapped Generic (Score a)
+
+$(makeLenses ''Score)

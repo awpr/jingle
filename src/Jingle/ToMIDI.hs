@@ -10,12 +10,10 @@ module Jingle.ToMIDI (toMIDIFile, writeMIDIFile) where
 
 import Data.Function ((&))
 import Data.List (foldl')
-import Data.Maybe (fromMaybe)
 import Data.Ratio (denominator)
 
 import Control.Lens ((%~))
 import Data.Text (Text)
-import Data.Vector qualified as V
 
 import Sound.MIDI.File qualified as MIDI
 import Sound.MIDI.File.Save qualified as MIDI
@@ -31,11 +29,9 @@ import Numeric.NonNegative.Wrapper qualified as NN
 import Jingle.Core
 import Jingle.Patches (toGeneralMIDIProgram)
 import Jingle.Syntax
-  ( ChordQuality(..), Chord(..), Interval(..)
-  , Articulation(..), Accidental(..)
+  ( ChordQuality(..), Chord(..), Interval(..), Articulation(..)
   )
-import Jingle.Syntax qualified as Syntax
-import Jingle.Types (Comp(..), Track(..), Note(..))
+import Jingle.Types (Score(..), Track(..))
 
 type FlatTrack t ann a = TimeTime.T t (Phonon t ann a)
 
@@ -87,29 +83,11 @@ expandChordQuality q root = root : case q of
   seventh = root + 11
   octave = root + 12
 
-interpNote :: Syntax.Note -> Note
-interpNote (Syntax.Named octave name acc) =
-  Note $ 12 * fromMaybe 4 octave + (notes V.! fromEnum name) + shift
- where
-  shift = case fromMaybe Natural acc of
-    DoubleSharp -> 2
-    Sharp -> 1
-    Natural -> 0
-    Flat -> -1
-    DoubleFlat -> -2
-
-  -- Starting from A, how many semitones is each note above the same-octave C?
-  --
-  -- The numbers are weird because the octave numbering system itself is weird.
-  -- I don't make the rules.
-  notes = V.fromList [9, 11, 0, 2, 4, 5, 7]
-
-expandChord :: Chord -> [Note]
+expandChord :: Chord Note -> [Note]
 expandChord (Chord root q adds) =
-  maybe pure expandChordQuality q root' ++
-  map (\ (Interval x) -> Note x + root') adds
+  maybe pure expandChordQuality q root ++
+  map (\ (Interval x) -> Note x + root) adds
  where
-  root' = interpNote root
 
 noteToMIDI :: Note -> Voice.Pitch
 noteToMIDI (Note x) = Voice.toPitch $ x + 12
@@ -170,7 +148,7 @@ toChannel
   :: Channel.Channel
   -> Integer
   -> Text
-  -> FlatTrack NN.Rational (Maybe Articulation) Chord
+  -> FlatTrack NN.Rational (Maybe Articulation) (Chord Note)
   -> TimeTime.T Meta.ElapsedTime Event.T
 toChannel chan denom voice =
   maybe id (TimeTime.cons 0) (programChange chan voice) .
@@ -193,7 +171,10 @@ normalChannels = Channel.toChannel <$> [0..8] ++ [10..15]
 toTrack
   :: Integer
   -> Maybe NN.Int
-  -> [(Channel.Channel, Track (FlatTrack NN.Rational (Maybe Articulation) Chord))]
+  -> [ ( Channel.Channel
+       , Track (FlatTrack NN.Rational (Maybe Articulation) (Chord Note))
+       )
+     ]
   -> MIDI.Track
 toTrack denom tempo =
   maybe id (TimeBody.cons 0 . Event.MetaEvent . Meta.SetTempo) tempo .
@@ -213,17 +194,21 @@ zipChunks xs ys =
   let !(xys, ys') = zipRest xs ys
   in  xys : zipChunks xs ys'
 
-toMIDIFile :: Comp (TrackContents NN.Rational (Maybe Articulation) Chord) -> MIDI.T
-toMIDIFile (Comp tempo ts) =
+toMIDIFile
+  :: Score (TrackContents NN.Rational (Maybe Articulation) (Chord Note))
+  -> MIDI.T
+toMIDIFile (Score tempo ts) =
   MIDI.Cons
     (if length tracks > 1 then MIDI.Parallel else MIDI.Mixed)
     (MIDI.Ticks (NN.fromNumber $ fromIntegral denom))
     (zipWith (toTrack denom) (Just usPerQuarter : repeat Nothing) tracks)
  where
-  flattened :: [Track (FlatTrack NN.Rational (Maybe Articulation) Chord)]
+  flattened
+    :: [Track (FlatTrack NN.Rational (Maybe Articulation) (Chord Note))]
   flattened = fmap flatten <$> ts
 
-  tracks :: [[(Channel.Channel, Track (FlatTrack NN.Rational (Maybe Articulation) Chord))]]
+  tracks
+    :: [[(Channel.Channel, Track (FlatTrack NN.Rational (Maybe Articulation) (Chord Note)))]]
   tracks = zipChunks normalChannels flattened
 
   usPerQuarter = NN.fromNumber $ 60_000_000 `div` tempo
@@ -235,6 +220,6 @@ toMIDIFile (Comp tempo ts) =
 
 writeMIDIFile
   :: FilePath
-  -> Comp (TrackContents NN.Rational (Maybe Articulation) Chord)
+  -> Score (TrackContents NN.Rational (Maybe Articulation) (Chord Note))
   -> IO ()
 writeMIDIFile p = MIDI.toFile p . toMIDIFile

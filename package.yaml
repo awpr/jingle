@@ -29,6 +29,7 @@ dependencies:
 - text
 - vector
 - midi
+- mtl
 - lens
 - event-list
 - non-negative

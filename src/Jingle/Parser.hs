@@ -16,7 +16,7 @@ import Text.Megaparsec.Char (char, string, space)
 import Text.Megaparsec.Char.Lexer (decimal, lexeme, symbol)
 
 import Jingle.Syntax
-import Jingle.Types (Comp(..), Track(..))
+import Jingle.Types (Score(..), Track(..))
 
 type Parser = Parsec Void Text
 
@@ -57,7 +57,7 @@ interval = decode <$> decimal
     let (octave, itvMinus1) = divMod (n - 1) 7
     in  Interval $ 12 * octave + semitones V.! itvMinus1
 
-chord :: Parser Chord
+chord :: Parser (Chord Note)
 chord =
   Chord
     <$> (note <?> "note name")
@@ -83,14 +83,14 @@ duration =
 ws :: Parser ()
 ws = space
 
-playPhonon :: Parser (Phonon Rational (Articulated Chord))
+playPhonon :: Parser (Phonon Rational (Articulated (Chord Note)))
 playPhonon = do
   v <- chord
   dur <- duration
   art <- optional articulation
   return $ Phonon dur (Just $ Articulated v art)
 
-phonon :: Parser (Phonon Rational (Articulated Chord))
+phonon :: Parser (Phonon Rational (Articulated (Chord Note)))
 phonon = choice
   [ lexeme ws playPhonon
   , lexeme ws $ char '_' *> (Phonon <$> duration <*> pure Nothing)
@@ -129,9 +129,9 @@ track =
     <$> (option "" $ lexeme ws $ char '<' *> takeWhileP Nothing (/= '>') <* char '>')
     <*> many trackPiece
 
-comp :: Parser (Comp TrackContents)
+comp :: Parser (Score TrackContents)
 comp =
-  Comp
+  Score
     <$> (decimal <* symbol ws ";")
     <*> sepBy1 track (symbol ws ";")
     <* eof

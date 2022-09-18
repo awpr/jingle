@@ -6,7 +6,9 @@
 
 module Jingle.Syntax
     ( Note(..), NoteName(..), Accidental(..)
-    , ChordQuality(..), Chord(..), Interval(..)
+    , ChordQuality(..)
+    , Chord(..), cRoot, cQuality, cAdd
+    , Interval(..)
     , Phonon(..), phDuration, phContent
     , Advance(..)
     , Articulation(..), Articulated(..), arArticulation, arVal
@@ -49,13 +51,15 @@ newtype Interval = Interval { intervalValue :: Int }
   deriving (Generic, Eq, Ord, Show)
   deriving Portray via PortrayDataCons Interval
 
-data Chord = Chord
-  { _cRoot :: Note
+data Chord a = Chord
+  { _cRoot :: a
   , _cQuality :: Maybe ChordQuality
   , _cAdd :: [Interval]
   }
   deriving (Generic, Eq, Ord, Show)
-  deriving Portray via PortrayDataCons Chord
+  deriving Portray via PortrayDataCons (Chord a)
+
+$(makeLenses ''Chord)
 
 data Articulation
   = Staccato
@@ -99,7 +103,7 @@ data Repeat = Repeat
   deriving Portray via PortrayDataCons Repeat
 
 data TrackPiece
-  = Single (Advance (Phonon Rational (Articulated Chord)))
+  = Single (Advance (Phonon Rational (Articulated (Chord Note))))
   | Group [TrackPiece] Rational (Maybe Articulation)
   | Rep Repeat
   deriving (Generic, Eq, Ord, Show)
