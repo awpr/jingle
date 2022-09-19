@@ -25,6 +25,7 @@ dsItem
   -> Maybe S.Articulation
   -> S.TrackPiece
   -> TrackContents NN.Rational (Maybe S.Articulation) (S.Chord S.Note)
+
 dsItem scale art (S.Single (S.Advance adv (S.Phonon d mx))) = Sequence $
   case mx of
     Nothing -> TimeTime.pause dt
@@ -34,8 +35,16 @@ dsItem scale art (S.Single (S.Advance adv (S.Phonon d mx))) = Sequence $
         (TimeTime.pause dt)
  where
   dt = if adv then NN.fromNumber (scale * d) else 0
+
 dsItem scale art (S.Group cont scale' art') =
   dsTrackContents (scale * scale') (art' <|> art) cont
+
+dsItem scale art (S.Par trs) =
+  Sequence $ foldr
+    (TimeTime.merge . getItems . dsTrackContents scale art)
+    (TimeTime.pause 0)
+    trs
+
 dsItem scale art (S.Rep (S.Repeat cont end n)) =
   Sequence $
     TimeTime.cons 0

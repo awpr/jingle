@@ -2,7 +2,7 @@
 {-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Jingle.Parser (comp) where
+module Jingle.Parser (score) where
 
 import Data.Functor (($>))
 import Data.Maybe (isJust)
@@ -115,11 +115,19 @@ grp = do
     art <- optional articulation
     return $ Group contents dur art
 
+par :: Parser [TrackContents]
+par = do
+  _ <- symbol ws "{"
+  trs <- sepBy1 (many trackPiece) (symbol ws ";")
+  _ <- symbol ws "}"
+  return trs
+
 trackPiece :: Parser TrackPiece
 trackPiece =
   choice
     [ Single <$> (flip Advance <$> phonon <*> (not <$> flag (symbol ws ",")))
     , grp
+    , Par <$> par
     , Rep <$> rep
     ]
 
@@ -129,8 +137,8 @@ track =
     <$> (option "" $ lexeme ws $ char '<' *> takeWhileP Nothing (/= '>') <* char '>')
     <*> many trackPiece
 
-comp :: Parser (Score TrackContents)
-comp =
+score :: Parser (Score TrackContents)
+score =
   Score
     <$> (decimal <* symbol ws ";")
     <*> sepBy1 track (symbol ws ";")

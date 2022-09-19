@@ -11,7 +11,7 @@ import Text.Megaparsec (parse, errorBundlePretty)
 import Sound.MIDI.File qualified as MIDI
 import Sound.MIDI.File.Save qualified as MIDI
 
-import Jingle.Parser (comp)
+import Jingle.Parser (score)
 import Jingle.Desugar (dsScore, lowerNotes)
 import Jingle.ToMIDI (toMIDIFile)
 import Orphans ()
@@ -24,7 +24,7 @@ data Options = Options
 compileToMIDI :: Options -> FilePath -> IO MIDI.T
 compileToMIDI opts src = do
   contents <- T.readFile src
-  ast <- case parse comp src contents of
+  ast <- case parse score src contents of
     Left err -> throwIO $ userError $ errorBundlePretty err
     Right r -> pure r
 

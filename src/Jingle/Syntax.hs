@@ -105,6 +105,7 @@ data Repeat = Repeat
 data TrackPiece
   = Single (Advance (Phonon Rational (Articulated (Chord Note))))
   | Group [TrackPiece] Rational (Maybe Articulation)
+  | Par [TrackContents]
   | Rep Repeat
   deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic TrackPiece
