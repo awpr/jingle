@@ -32,9 +32,11 @@ compileToMIDI opts src = do
 
   let core = dsScore ast
 
-  when (_optDumpCore opts) $ pp core
+  -- when (_optDumpCore opts) $ pp core
 
   let lowered = lowerNotes core
+
+  when (_optDumpCore opts) $ pp lowered
 
   return $ toMIDIFile lowered
 

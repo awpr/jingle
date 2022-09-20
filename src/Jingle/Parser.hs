@@ -83,14 +83,14 @@ duration =
 ws :: Parser ()
 ws = space
 
-playPhonon :: Parser (Phonon Rational (Articulated (Chord Note)))
+playPhonon :: Parser (Phonon Rational (Articulated [Chord Note]))
 playPhonon = do
-  v <- chord
+  v <- sepBy1 chord (char ',')
   dur <- duration
   art <- optional articulation
   return $ Phonon dur (Just $ Articulated v art)
 
-phonon :: Parser (Phonon Rational (Articulated (Chord Note)))
+phonon :: Parser (Phonon Rational (Articulated [Chord Note]))
 phonon = choice
   [ lexeme ws playPhonon
   , lexeme ws $ char '_' *> (Phonon <$> duration <*> pure Nothing)
@@ -125,7 +125,7 @@ par = do
 trackPiece :: Parser TrackPiece
 trackPiece =
   choice
-    [ Single <$> (flip Advance <$> phonon <*> (not <$> flag (symbol ws ",")))
+    [ Single <$> phonon
     , grp
     , Par <$> par
     , Rep <$> rep

@@ -148,13 +148,13 @@ toChannel
   :: Channel.Channel
   -> Integer
   -> Text
-  -> FlatTrack NN.Rational (Maybe Articulation) (Chord Note)
+  -> FlatTrack NN.Rational (Maybe Articulation) [Chord Note]
   -> TimeTime.T Meta.ElapsedTime Event.T
 toChannel chan denom voice =
   maybe id (TimeTime.cons 0) (programChange chan voice) .
   TimeTime.moveBackward .
   TimeTime.flatten .
-  fmap (concatMap (toMIDIEvents chan) . phNote expandChord) .
+  fmap (concatMap (toMIDIEvents chan) . phNote (concatMap expandChord)) .
   quantizeTimes denom
 
 -- | All of the MIDI channel numbers usable for arbitrary instruments.
@@ -172,7 +172,7 @@ toTrack
   :: Integer
   -> Maybe NN.Int
   -> [ ( Channel.Channel
-       , Track (FlatTrack NN.Rational (Maybe Articulation) (Chord Note))
+       , Track (FlatTrack NN.Rational (Maybe Articulation) [Chord Note])
        )
      ]
   -> MIDI.Track
@@ -195,7 +195,7 @@ zipChunks xs ys =
   in  xys : zipChunks xs ys'
 
 toMIDIFile
-  :: Score (TrackContents NN.Rational (Maybe Articulation) (Chord Note))
+  :: Score (TrackContents NN.Rational (Maybe Articulation) [Chord Note])
   -> MIDI.T
 toMIDIFile (Score tempo ts) =
   MIDI.Cons
@@ -204,11 +204,12 @@ toMIDIFile (Score tempo ts) =
     (zipWith (toTrack denom) (Just usPerQuarter : repeat Nothing) tracks)
  where
   flattened
-    :: [Track (FlatTrack NN.Rational (Maybe Articulation) (Chord Note))]
+    :: [Track (FlatTrack NN.Rational (Maybe Articulation) [Chord Note])]
   flattened = fmap flatten <$> ts
 
   tracks
-    :: [[(Channel.Channel, Track (FlatTrack NN.Rational (Maybe Articulation) (Chord Note)))]]
+    :: [[( Channel.Channel
+         , Track (FlatTrack NN.Rational (Maybe Articulation) [Chord Note]))]]
   tracks = zipChunks normalChannels flattened
 
   usPerQuarter = NN.fromNumber $ 60_000_000 `div` tempo
@@ -220,6 +221,6 @@ toMIDIFile (Score tempo ts) =
 
 writeMIDIFile
   :: FilePath
-  -> Score (TrackContents NN.Rational (Maybe Articulation) (Chord Note))
+  -> Score (TrackContents NN.Rational (Maybe Articulation) [Chord Note])
   -> IO ()
 writeMIDIFile p = MIDI.toFile p . toMIDIFile

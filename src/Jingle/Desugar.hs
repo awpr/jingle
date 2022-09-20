@@ -5,9 +5,9 @@
 module Jingle.Desugar (dsScore, dsTrackContents, lowerNotes) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.State (State, evalState, state)
+import Control.Monad.State (State, evalState, put, state)
 
-import Control.Lens (over, traverseOf)
+import Control.Lens (over, traverseOf, (^?))
 import Data.EventList.Relative.TimeTime qualified as TimeTime
 import Numeric.NonNegative.Wrapper qualified as NN
 
@@ -24,17 +24,17 @@ dsItem
   :: Rational
   -> Maybe S.Articulation
   -> S.TrackPiece
-  -> TrackContents NN.Rational (Maybe S.Articulation) (S.Chord S.Note)
+  -> TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note]
 
-dsItem scale art (S.Single (S.Advance adv (S.Phonon d mx))) = Sequence $
+dsItem scale art (S.Single (S.Phonon d mx)) = Sequence $
   case mx of
-    Nothing -> TimeTime.pause dt
+    Nothing -> TimeTime.pause d'
     Just (S.Articulated x art') ->
       TimeTime.cons 0
-        (Single $ Phonon (NN.fromNumber $ scale * d) (art' <|> art) x)
-        (TimeTime.pause dt)
+        (Single $ Phonon d' (art' <|> art) x)
+        (TimeTime.pause d')
  where
-  dt = if adv then NN.fromNumber (scale * d) else 0
+  d' = NN.fromNumber (scale * d)
 
 dsItem scale art (S.Group cont scale' art') =
   dsTrackContents (scale * scale') (art' <|> art) cont
@@ -58,12 +58,12 @@ dsTrackContents
   :: Rational
   -> Maybe S.Articulation
   -> S.TrackContents
-  -> TrackContents NN.Rational (Maybe S.Articulation) (S.Chord S.Note)
+  -> TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note]
 dsTrackContents scale art = foldMap (dsItem scale art)
 
 dsScore
   :: Score S.TrackContents
-  -> Score (TrackContents NN.Rational (Maybe S.Articulation) (S.Chord S.Note))
+  -> Score (TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note])
 dsScore = fmap (dsTrackContents 1 Nothing)
 
 pitchClass :: S.NoteName -> Maybe Accidental -> Int
@@ -104,10 +104,17 @@ lowerNote (S.Named oct nm acc) = state $ \mprev ->
         Just o -> cl + o * 12
   in  (Note pitch, Just $ Note pitch)
 
+lowerCluster
+  :: [S.Chord S.Note] -> State (Maybe Note) [S.Chord Note]
+lowerCluster xs = do
+  r <- traverseOf (traverse . S.cRoot) lowerNote xs
+  put (r ^? traverse . S.cRoot)
+  return r
+
 lowerNotes
-  :: Score (TrackContents NN.Rational (Maybe S.Articulation) (S.Chord S.Note))
-  -> Score (TrackContents NN.Rational (Maybe S.Articulation) (S.Chord Note))
+  :: Score (TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note])
+  -> Score (TrackContents NN.Rational (Maybe S.Articulation) [S.Chord Note])
 lowerNotes =
   over (scTracks . traverse . trContents) $
   flip evalState Nothing .
-  traverseOf (traverse . phNote . S.cRoot) lowerNote
+  traverseOf (traverse . phNote) lowerCluster

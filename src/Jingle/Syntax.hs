@@ -10,7 +10,6 @@ module Jingle.Syntax
     , Chord(..), cRoot, cQuality, cAdd
     , Interval(..)
     , Phonon(..), phDuration, phContent
-    , Advance(..)
     , Articulation(..), Articulated(..), arArticulation, arVal
     , Repeat(..), TrackPiece(..), TrackContents
     ) where
@@ -90,10 +89,6 @@ data Phonon t a = Phonon
 
 $(makeLenses ''Phonon)
 
-data Advance a = Advance Bool a
-  deriving (Generic, Eq, Ord, Show, Functor)
-  deriving Portray via Wrapped Generic (Advance a)
-
 data Repeat = Repeat
   { _repContents :: [TrackPiece]
   , _repEnding :: [TrackPiece]
@@ -103,7 +98,7 @@ data Repeat = Repeat
   deriving Portray via PortrayDataCons Repeat
 
 data TrackPiece
-  = Single (Advance (Phonon Rational (Articulated (Chord Note))))
+  = Single (Phonon Rational (Articulated [Chord Note]))
   | Group [TrackPiece] Rational (Maybe Articulation)
   | Par [TrackContents]
   | Rep Repeat
