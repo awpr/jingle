@@ -45,5 +45,5 @@ generalMIDI = M.fromList
 
 toGeneralMIDIProgram :: Text -> Maybe Voice.Program
 toGeneralMIDIProgram =
-  fmap (Voice.toProgram . subtract 1) . -- One-based vs. zero-based confusion?
+  fmap Voice.toProgram .
   flip M.lookup generalMIDI . T.toLower
