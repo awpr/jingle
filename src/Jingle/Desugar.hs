@@ -85,17 +85,24 @@ pitchClass nm acc = nm' + acc'
     Just Sharp -> 1
     Just DoubleSharp -> 2
 
+-- | Returns the element of [lb, lb+n) congruent to x mod n.
+--
+-- In particular, @modInto 0 n x = x `mod` n@.
+modInto :: Integral a => a -> a -> a -> a
+modInto lb n x = (x - lb) `mod` n + lb
+
 lowerNote
   :: S.Note -> State (Maybe Note) Note
-lowerNote (S.Named oct nm acc) = state $ \case
-  Nothing -> (Note (cl + 48), Just $ Note (cl + 48))
-  Just (Note prev) ->
-    let pitch = case oct of
-          Nothing -> (cl - prev + 6) `mod` 12 + prev - 6
-          Just o -> cl + o * 12
-    in  (Note pitch, Just $ Note pitch)
- where
-  cl = pitchClass nm acc
+lowerNote (S.Named oct nm acc) = state $ \mprev ->
+  let cl = pitchClass nm acc
+      pitch = case oct of
+        Nothing ->
+          maybe
+            (cl + 48)
+            (\ (Note prev) -> modInto (prev - 6) 12 cl)
+            mprev
+        Just o -> cl + o * 12
+  in  (Note pitch, Just $ Note pitch)
 
 lowerNotes
   :: Score (TrackContents NN.Rational (Maybe S.Articulation) (S.Chord S.Note))
