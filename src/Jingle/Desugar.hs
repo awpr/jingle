@@ -26,17 +26,17 @@ dsItem
   -> S.TrackPiece
   -> TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note]
 
-dsItem scale art (S.Single (S.Phonon d mx)) = Sequence $
-  case mx of
-    Nothing -> TimeTime.pause d'
-    Just (S.Articulated x art') ->
-      TimeTime.cons 0
-        (Single $ Phonon d' (art' <|> art) x)
-        (TimeTime.pause d')
+dsItem scale _ (S.Rest d) =
+  Sequence $ TimeTime.pause (NN.fromNumber $ d * scale)
+
+dsItem scale art (S.Play x (S.NoteMeta d art')) = Sequence $
+  TimeTime.cons 0
+    (Single $ Phonon d' (art' <|> art) x)
+    (TimeTime.pause d')
  where
   d' = NN.fromNumber (scale * d)
 
-dsItem scale art (S.Group cont scale' art') =
+dsItem scale art (S.Group cont (S.NoteMeta scale' art')) =
   dsTrackContents (scale * scale') (art' <|> art) cont
 
 dsItem scale art (S.Par trs) =

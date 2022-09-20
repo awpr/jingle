@@ -80,21 +80,17 @@ duration =
     <$> option 1 (char ':' *> decimal)
     <*> option 1 (char '/' *> decimal)
 
+noteMeta :: Parser NoteMeta
+noteMeta = NoteMeta <$> duration <*> optional articulation
+
 ws :: Parser ()
 ws = space
 
-playPhonon :: Parser (Phonon Rational (Articulated [Chord Note]))
-playPhonon = do
-  v <- sepBy1 chord (char ',')
-  dur <- duration
-  art <- optional articulation
-  return $ Phonon dur (Just $ Articulated v art)
+play :: Parser TrackPiece
+play = lexeme ws $ Play <$> sepBy1 chord (char ',') <*> noteMeta
 
-phonon :: Parser (Phonon Rational (Articulated [Chord Note]))
-phonon = choice
-  [ lexeme ws playPhonon
-  , lexeme ws $ char '_' *> (Phonon <$> duration <*> pure Nothing)
-  ]
+rest :: Parser TrackPiece
+rest = lexeme ws $ Rest <$ char '_' <*> duration
 
 rep :: Parser Repeat
 rep = do
@@ -111,9 +107,7 @@ grp = do
   contents <- many trackPiece
   lexeme ws $ do
     _ <- char ')'
-    dur <- duration
-    art <- optional articulation
-    return $ Group contents dur art
+    Group contents <$> noteMeta
 
 par :: Parser [TrackContents]
 par = do
@@ -125,7 +119,8 @@ par = do
 trackPiece :: Parser TrackPiece
 trackPiece =
   choice
-    [ Single <$> phonon
+    [ play
+    , rest
     , grp
     , Par <$> par
     , Rep <$> rep

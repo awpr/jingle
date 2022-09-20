@@ -9,8 +9,8 @@ module Jingle.Syntax
     , ChordQuality(..)
     , Chord(..), cRoot, cQuality, cAdd
     , Interval(..)
-    , Phonon(..), phDuration, phContent
-    , Articulation(..), Articulated(..), arArticulation, arVal
+    , NoteMeta(..), nmArticulation, nmDuration
+    , Articulation(..)
     , Repeat(..), TrackPiece(..), TrackContents
     ) where
 
@@ -69,25 +69,14 @@ data Articulation
   deriving (Generic, Eq, Ord, Show)
   deriving Portray via Wrapped Generic Articulation
 
-data Articulated a = Articulated
-  { _arVal :: a
-  , _arArticulation :: Maybe Articulation
+data NoteMeta = NoteMeta
+  { _nmDuration :: Rational
+  , _nmArticulation :: Maybe Articulation
   }
-  deriving (Generic, Eq, Ord, Show, Functor)
-  deriving Portray via PortrayDataCons (Articulated a)
+  deriving (Generic, Eq, Ord, Show)
+  deriving Portray via Wrapped Generic NoteMeta
 
-$(makeLenses ''Articulated)
-
--- One "thing" to be played in the track: a chord, note, or rest, along with
--- any articulation, duration, etc.
-data Phonon t a = Phonon
-  { _phDuration :: t
-  , _phContent :: Maybe a
-  }
-  deriving (Generic, Eq, Ord, Show, Functor)
-  deriving Portray via PortrayDataCons (Phonon t a)
-
-$(makeLenses ''Phonon)
+$(makeLenses ''NoteMeta)
 
 data Repeat = Repeat
   { _repContents :: [TrackPiece]
@@ -98,8 +87,9 @@ data Repeat = Repeat
   deriving Portray via PortrayDataCons Repeat
 
 data TrackPiece
-  = Single (Phonon Rational (Articulated [Chord Note]))
-  | Group [TrackPiece] Rational (Maybe Articulation)
+  = Rest Rational
+  | Play [Chord Note] NoteMeta
+  | Group [TrackPiece] NoteMeta
   | Par [TrackContents]
   | Rep Repeat
   deriving (Generic, Eq, Ord, Show)
