@@ -89,6 +89,7 @@ data Repeat = Repeat
 data TrackPiece
   = Rest Rational
   | Play [Chord Note] NoteMeta
+  | RepNote NoteMeta
   | Group [TrackPiece] NoteMeta
   | Par [TrackContents]
   | Rep Repeat

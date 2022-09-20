@@ -119,8 +119,9 @@ par = do
 trackPiece :: Parser TrackPiece
 trackPiece =
   choice
-    [ play
-    , rest
+    [ rest
+    , play
+    , lexeme ws $ RepNote <$ char '"' <*> noteMeta
     , grp
     , Par <$> par
     , Rep <$> rep
