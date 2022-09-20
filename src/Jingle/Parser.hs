@@ -4,6 +4,7 @@
 
 module Jingle.Parser (score) where
 
+import Control.Applicative (liftA3)
 import Data.Functor (($>))
 import Data.Maybe (isJust)
 import Data.Ratio ((%))
@@ -80,14 +81,16 @@ duration =
     <$> option 1 (char ':' *> decimal)
     <*> option 1 (char '/' *> decimal)
 
-noteMeta :: Parser NoteMeta
-noteMeta = NoteMeta <$> duration <*> optional articulation
+noteMeta :: Parser (NoteMeta -> a) -> Parser a
+noteMeta p =
+  liftA3
+    (\art f dur -> f (NoteMeta dur art))
+    (optional articulation)
+    p
+    (lexeme ws duration)
 
 ws :: Parser ()
 ws = space
-
-play :: Parser TrackPiece
-play = lexeme ws $ Play <$> sepBy1 chord (char ',') <*> noteMeta
 
 rest :: Parser TrackPiece
 rest = lexeme ws $ Rest <$ char '_' <*> duration
@@ -101,13 +104,12 @@ rep = do
   n <- option 2 (char 'x' *> lexeme ws decimal)
   return $ Repeat contents ending n
 
-grp :: Parser TrackPiece
+grp :: Parser (NoteMeta -> TrackPiece)
 grp = do
   _ <- lexeme ws (char '(')
   contents <- many trackPiece
-  lexeme ws $ do
-    _ <- char ')'
-    Group contents <$> noteMeta
+  _ <- lexeme ws (char ')')
+  pure $ Group contents
 
 par :: Parser [TrackContents]
 par = do
@@ -120,9 +122,11 @@ trackPiece :: Parser TrackPiece
 trackPiece =
   choice
     [ rest
-    , play
-    , lexeme ws $ RepNote <$ char '"' <*> noteMeta
-    , grp
+    , noteMeta $ choice
+        [ Play <$> sepBy1 chord (char ',')
+        , RepNote <$ char '"'
+        , grp
+        ]
     , Par <$> par
     , Rep <$> rep
     ]
