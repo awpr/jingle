@@ -5,7 +5,9 @@
 module Jingle.Desugar (dsScore, dsTrackContents, lowerNotes) where
 
 import Control.Applicative ((<|>))
+import Control.Monad.Reader (Reader, asks, local, runReader)
 import Control.Monad.State (State, evalState, put, state)
+import Data.Monoid (Ap(..))
 
 import Control.Lens (over, traverseOf, (^?))
 import Data.EventList.Relative.TimeTime qualified as TimeTime
@@ -17,54 +19,54 @@ import Jingle.Core
          , phNote
          )
 import qualified Jingle.Syntax as S
-import Jingle.Syntax (NoteName(..), Accidental(..))
+import Jingle.Syntax (NoteMeta(..), NoteName(..), Accidental(..), Articulation)
 import Jingle.Types (Score(..), trContents, scTracks)
 
+dsArticulation :: Maybe Articulation -> Reader NoteMeta (Maybe Articulation)
+dsArticulation x = (x <|>) <$> asks _nmArticulation
+
+dsDuration :: Rational -> Reader NoteMeta NN.Rational
+dsDuration d = NN.fromNumber . (d *) <$> asks _nmDuration
+
+withMeta :: NoteMeta -> Reader NoteMeta a -> Reader NoteMeta a
+withMeta (NoteMeta d art) =
+  local (\ (NoteMeta d' art') -> NoteMeta (d * d') (art <|> art'))
+
 dsItem
-  :: Rational
-  -> Maybe S.Articulation
-  -> S.TrackPiece
-  -> TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note]
+  :: S.TrackPiece
+  -> Reader NoteMeta
+       (TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note])
 
-dsItem scale _ (S.Rest d) =
-  Sequence $ TimeTime.pause (NN.fromNumber $ d * scale)
+dsItem (S.Rest d) = Sequence . TimeTime.pause <$> dsDuration d
 
-dsItem scale art (S.Play x (S.NoteMeta d art')) = Sequence $
-  TimeTime.cons 0
-    (Single $ Phonon d' (art' <|> art) x)
-    (TimeTime.pause d')
- where
-  d' = NN.fromNumber (scale * d)
+dsItem (S.Play x (NoteMeta d art)) = do
+  art' <- dsArticulation art
+  d' <- dsDuration d
+  return $ Sequence $
+      TimeTime.cons 0
+        (Single $ Phonon d' art' x)
+        (TimeTime.pause d')
 
-dsItem scale art (S.Group cont (S.NoteMeta scale' art')) =
-  dsTrackContents (scale * scale') (art' <|> art) cont
+dsItem (S.Group cont meta) = withMeta meta $ dsTrackContents cont
 
-dsItem scale art (S.Par trs) =
-  Sequence $ foldr
-    (TimeTime.merge . getItems . dsTrackContents scale art)
-    (TimeTime.pause 0)
-    trs
+dsItem (S.Par trs) = do
+  trs' <- traverse (fmap getItems . dsTrackContents) trs
+  return $ Sequence $ foldr TimeTime.merge (TimeTime.pause 0) trs'
 
-dsItem scale art (S.Rep (S.Repeat cont end n)) =
-  Sequence $
-    TimeTime.cons 0
-      (Rep $ Repeat
-        (dsTrackContents scale art cont)
-        (dsTrackContents scale art end)
-        n)
-      (TimeTime.pause 0)
+dsItem (S.Rep (S.Repeat cont end n)) = do
+  rep <- Repeat <$> dsTrackContents cont <*> dsTrackContents end <*> pure n
+  return $ Sequence $ TimeTime.cons 0 (Rep rep) (TimeTime.pause 0)
 
 dsTrackContents
-  :: Rational
-  -> Maybe S.Articulation
-  -> S.TrackContents
-  -> TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note]
-dsTrackContents scale art = foldMap (dsItem scale art)
+  :: S.TrackContents
+  -> Reader NoteMeta
+       (TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note])
+dsTrackContents = getAp . foldMap (Ap . dsItem)
 
 dsScore
   :: Score S.TrackContents
   -> Score (TrackContents NN.Rational (Maybe S.Articulation) [S.Chord S.Note])
-dsScore = fmap (dsTrackContents 1 Nothing)
+dsScore = fmap (flip runReader (NoteMeta 1 Nothing) . dsTrackContents)
 
 pitchClass :: S.NoteName -> Maybe Accidental -> Int
 pitchClass nm acc = nm' + acc'
